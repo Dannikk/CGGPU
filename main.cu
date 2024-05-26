@@ -86,7 +86,7 @@ __global__ void warpIntrinsicsMatMul(float* a, float* b, float* c, size_t l, siz
 	float aTileLocal = aTile[tileRow][tileCol];
 	__syncwarp();
 	for (size_t i = 0; i < WARP_SIZE; i++)
-	  cVal += __shfl(0xffffffff, aTileLocal, i) * bTile[i][tileCol];
+	  cVal += __shfl_sync(0xffffffff, aTileLocal, i) * bTile[i][tileCol];
 	__syncthreads();
   }
 
@@ -96,7 +96,7 @@ __global__ void warpIntrinsicsMatMul(float* a, float* b, float* c, size_t l, siz
 int main()
 {
   cudaError_t cudaStatus;
-  size_t l = 1 << 10, m = 1 << 10, n = 1 << 10;
+  size_t l = 1 << 4, m = 1 << 4, n = 1 << 4;
 
   float* a, * b, * c;
   float* a_dev, * b_dev, * c_dev;
@@ -149,19 +149,20 @@ int main()
 
   switch (mode) {
   case 1:
-	printf("simpleMatMul");
+	printf("simpleMatMul\n");
 	simpleMatMul <<< blockInGrid, threadInBlock >>> (a_dev, b_dev, c_dev, l, m, n);
 	break;
   case 2:
-	printf("sharedMatMul");
+	printf("sharedMatMul\n");
 	sharedMatMul <<< blockInGrid, threadInBlock >>> (a_dev, b_dev, c_dev, l, m, n);
 	break;
   case 3:
-	printf("warpIntrinsicsMatMul");
+	printf("warpIntrinsicsMatMul\n");
 	warpIntrinsicsMatMul <<< blockInGrid, threadInBlock >>> (a_dev, b_dev, c_dev, l, m, n);
 	break;
   default:
-    printf("none was selected");
+    printf("none was selected\n");
+	return 1;
   }
 
   cudaStatus = cudaDeviceSynchronize();
@@ -175,14 +176,20 @@ int main()
 	fprintf(stderr, "cudaMemcpy failed! [%d]", int(cudaStatus));
 	return 1;
   }
-  
+
   cudaStatus = cudaGetLastError();
   if (cudaStatus != cudaSuccess) {
 	fprintf(stderr, "last cudaStatus is not success: %d", int(cudaStatus));
 	return 1;
   }
 
-
+  printf("%f\n", c[0]);
+  for (int i=0; i < l; i++) {
+	for (int j=0; j < n; j ++) {
+		printf("%f ", c[i*n + j]);
+	}
+	printf("\n");
+  }
 
   free(a);
   free(b);
